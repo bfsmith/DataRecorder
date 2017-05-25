@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Recorder</string>
+    <string name="action_settings">Settings</string>
+    <string name="tags_title">Tags</string>
+    <string name="name">Name</string>
+    <string name="password">Password</string>
+</resources>
