@@ -1,21 +1,23 @@
 package bfsmith.github.com.recorder
 
-import android.content.Context
+import android.app.Dialog
 import android.os.Bundle
 import android.support.v4.content.ContextCompat
 import android.support.v7.app.AppCompatActivity
-import android.text.InputType.TYPE_CLASS_TEXT
-import android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+import android.text.Editable
+import android.text.InputType.TYPE_CLASS_NUMBER
+import android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
-import android.widget.RelativeLayout
 import com.github.bfsmith.recorder.DataService
 import com.github.bfsmith.recorder.Tag
+import com.github.bfsmith.recorder.TagViewActivity
+import com.github.bfsmith.recorder.database
 import com.github.bfsmith.recorder.util.MyListAdapter
 import com.github.bfsmith.recorder.util.TemplateRenderer
-import com.github.bfsmith.recorder.util.render
 import org.jetbrains.anko.*
 import org.jetbrains.anko.design.coordinatorLayout
 import org.jetbrains.anko.sdk25.coroutines.onClick
@@ -23,12 +25,8 @@ import org.jetbrains.anko.design.floatingActionButton
 import org.jetbrains.anko.sdk25.coroutines.onItemClick
 
 class MainActivity : AppCompatActivity() {
-    lateinit var ds: DataService
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ds = DataService()
-
         MainActivityUi().setContentView(this)
     }
 
@@ -36,26 +34,27 @@ class MainActivity : AppCompatActivity() {
         ui.doAsync {
             activityUiThreadWithContext {
                 toast("You selected tag ${tag.tag}.")
+                startActivity<TagViewActivity>("TagId" to tag.id)
             }
         }
     }
 
-    fun tryLogin(ui: AnkoContext<MainActivity>, name: CharSequence?, password: CharSequence?) {
-        ui.doAsync {
-            Thread.sleep(500)
-
-            activityUiThreadWithContext {
-                if (checkCredentials(name.toString(), password.toString())) {
-                    toast("Logged in! :)")
-//                    startActivity<CountriesActivity>()
-                } else {
-                    toast("Wrong password :( Enter user:password")
-                }
-            }
-        }
-    }
-
-    private fun checkCredentials(name: String, password: String) = name == "user" && password == "password"
+//    fun tryLogin(ui: AnkoContext<MainActivity>, name: CharSequence?, password: CharSequence?) {
+//        ui.doAsync {
+//            Thread.sleep(500)
+//
+//            activityUiThreadWithContext {
+//                if (checkCredentials(name.toString(), password.toString())) {
+//                    toast("Logged in! :)")
+////                    startActivity<CountriesActivity>()
+//                } else {
+//                    toast("Wrong password :( Enter user:password")
+//                }
+//            }
+//        }
+//    }
+//
+//    private fun checkCredentials(name: String, password: String) = name == "user" && password == "password"
 }
 
 class MainActivityUi : AnkoComponent<MainActivity> {
@@ -68,40 +67,100 @@ class MainActivityUi : AnkoComponent<MainActivity> {
 
     override fun createView(ui: AnkoContext<MainActivity>): View = with(ui) {
 
-        val listAdapter = MyListAdapter<Tag>(owner.ds.tags, { it.id }) {
+        val listAdapter = MyListAdapter<Tag>(owner.database.tags, { it.id }) {
             tag ->
             TemplateRenderer(owner) {
                 with(it) {
-                    textView {
-                        text = tag.tag
-                        textSize = 26f
+                    relativeLayout {
+                        textView {
+                            text = tag.tag
+                            textSize = 32f
+                            onClick {
+                                ui.owner.tagSelected(ui, tag)
+                            }
+                        }.lparams {
+                            alignParentLeft()
+                        }
+                        linearLayout {
+                            imageButton(android.R.drawable.ic_input_add) {
+                                onClick {
+                                    alert {
+                                        customView {
+                                            verticalLayout {
+                                                toolbar {
+                                                    lparams(width = matchParent, height = wrapContent)
+                                                    backgroundColor = ContextCompat.getColor(ctx, R.color.colorAccent)
+                                                    title = "Add a value"
+                                                    setTitleTextColor(ContextCompat.getColor(ctx, android.R.color.white))
+                                                }
+                                                val valueField = editText {
+                                                    hint = "Value"
+                                                    padding = dip(20)
+                                                    inputType = TYPE_CLASS_NUMBER + TYPE_NUMBER_FLAG_DECIMAL
+                                                }
+                                                positiveButton("Add") {
+                                                    val value = valueField.text.toString().toDoubleOrNull()
+                                                    if (value != null) {
+                                                        ui.owner.database.addRecordForTag(tag.id, value)
+                                                        it.dismiss()
+                                                    }
+                                                }
+                                                negativeButton("Cancel") {}
+                                            }
+                                        }
+                                    }.show()
+                                }
+                            }
+                            imageButton(android.R.drawable.ic_delete) {
+                                onClick {
+                                    alert {
+                                        customView {
+                                            verticalLayout {
+                                                toolbar {
+                                                    lparams(width = matchParent, height = wrapContent)
+                                                    backgroundColor = ContextCompat.getColor(ctx, R.color.colorAccent)
+                                                    title = "Delete '${tag.tag}'?"
+                                                    setTitleTextColor(ContextCompat.getColor(ctx, android.R.color.white))
+                                                }
+                                                positiveButton("Yes") {
+                                                    ui.owner.database.removeTag(tag.id)
+                                                    it.dismiss()
+                                                }
+                                                negativeButton("No") {}
+                                            }
+                                        }
+                                    }.show()
+                                }
+                            }
+                        }.lparams {
+                            width = wrapContent
+                            height = wrapContent
+                            alignParentRight()
+                            alignParentTop()
+                        }
                     }
+
                 }
             }
         }
 
         coordinatorLayout {
             verticalLayout {
-                padding = dip(32)
-
-                render(TemplateRenderer(owner) {
-                    with(it) {
-                        textView {
-                            text = "Template Renderer Worked"
-                            textSize = 26f
-                        }
-                    }
-                })
+                padding = dip(8)
 
                 listView {
                     adapter = listAdapter
-                    onItemClick { adapterView, view, index, id ->
-                        val tag = owner.ds.tags.find { it.id == id.toInt() }
-                        toast("You selected ${tag?.tag ?: "Unknown"}")
+                    onItemClick { _, _, _, id ->
+                        val tag = owner.database.tags.find { it.id == id.toInt() }
+                        if (tag != null) {
+                            owner.tagSelected(ui, tag)
+                        }
+//                        toast("You selected ${tag?.tag ?: "Unknown"}")
                     }
                 }.lparams {
                     margin = dip(8)
                     width = matchParent
+                    height = matchParent
                 }
 
 //                imageView(android.R.drawable.ic_menu_manage).lparams {
@@ -155,7 +214,9 @@ class MainActivityUi : AnkoComponent<MainActivity> {
                                         toast("Oops!! Your task says nothing!")
                                     } else {
                                         // Add Tag to database and refresh list
-                                        toast("You would have added ${tag.text}")
+                                        owner.database.addTag(tag.text.toString())
+                                        listAdapter.notifyDataSetChanged()
+                                        toast("You have added ${tag.text}")
                                         it.dismiss()
                                     }
                                 }

@@ -14,11 +14,11 @@ class TemplateRenderer(context: Context?, render: (AnkoContext<*>) -> View) : Re
     }
 }
 
-inline fun ViewManager.render(view: android.view.View): android.view.View {
-    return ankoView({ ctx: Context -> view }, theme = 0) {}
+fun ViewManager.render(view: android.view.View): android.view.View {
+    return ankoView({ view }, theme = 0) {}
 }
-inline fun ViewManager.render(view: android.view.View, init: (@AnkoViewDslMarker android.view.View).() -> Unit ): android.view.View {
-    return ankoView({ ctx: Context -> view }, theme = 0) {
+fun ViewManager.render(view: android.view.View, init: (@AnkoViewDslMarker android.view.View).() -> Unit ): android.view.View {
+    return ankoView({ view }, theme = 0) {
         init()
     }
 }
