@@ -1,28 +1,21 @@
-package bfsmith.github.com.recorder
+package com.github.bfsmith.recorder
 
-import android.app.Dialog
 import android.os.Bundle
 import android.support.v4.content.ContextCompat
 import android.support.v7.app.AppCompatActivity
-import android.text.Editable
-import android.text.InputType.TYPE_CLASS_NUMBER
-import android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-import android.text.TextWatcher
+import android.text.InputType.*
 import android.view.Gravity
 import android.view.View
-import android.widget.Button
+import android.view.inputmethod.EditorInfo
 import android.widget.EditText
-import com.github.bfsmith.recorder.DataService
-import com.github.bfsmith.recorder.Tag
-import com.github.bfsmith.recorder.TagViewActivity
-import com.github.bfsmith.recorder.database
+import android.widget.ListAdapter
 import com.github.bfsmith.recorder.util.MyListAdapter
 import com.github.bfsmith.recorder.util.TemplateRenderer
+import com.github.bfsmith.recorder.util.showKeyboardOnFocus
 import org.jetbrains.anko.*
 import org.jetbrains.anko.design.coordinatorLayout
-import org.jetbrains.anko.sdk25.coroutines.onClick
 import org.jetbrains.anko.design.floatingActionButton
-import org.jetbrains.anko.sdk25.coroutines.onItemClick
+import org.jetbrains.anko.sdk25.coroutines.*
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,53 +31,38 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-//    fun tryLogin(ui: AnkoContext<MainActivity>, name: CharSequence?, password: CharSequence?) {
-//        ui.doAsync {
-//            Thread.sleep(500)
-//
-//            activityUiThreadWithContext {
-//                if (checkCredentials(name.toString(), password.toString())) {
-//                    toast("Logged in! :)")
-////                    startActivity<CountriesActivity>()
-//                } else {
-//                    toast("Wrong password :( Enter user:password")
-//                }
-//            }
-//        }
-//    }
-//
-//    private fun checkCredentials(name: String, password: String) = name == "user" && password == "password"
 }
 
 class MainActivityUi : AnkoComponent<MainActivity> {
-    private val customStyle = { v: Any ->
-        when (v) {
-            is Button -> v.textSize = 26f
-            is EditText -> v.textSize = 24f
-        }
-    }
-
     override fun createView(ui: AnkoContext<MainActivity>): View = with(ui) {
+        fun addValue(tagId: Int, value: Double?): Boolean {
+            if (value != null) {
+                ui.owner.database.addRecordForTag(tagId, value)
+                toast("Recorded ${value}")
+                return true
+            }
+            return false
+        }
+        var listAdapter: MyListAdapter<Tag>? = null
+        fun removeTag(tagId: Int) {
+            ui.owner.database.removeTag(tagId)
+            listAdapter?.notifyDataSetChanged()
+        }
 
-        val listAdapter = MyListAdapter<Tag>(owner.database.tags, { it.id }) {
+        listAdapter = MyListAdapter(owner.database.tags, { it.id }) {
             tag ->
             TemplateRenderer(owner) {
                 with(it) {
                     relativeLayout {
-                        textView {
-                            text = tag.tag
-                            textSize = 32f
-                            onClick {
-                                ui.owner.tagSelected(ui, tag)
-                            }
-                        }.lparams {
-                            alignParentLeft()
-                        }
-                        linearLayout {
+                        //                        backgroundColor = ContextCompat.getColor(ctx, R.color.colorAccent)
+                        val buttonContainer = linearLayout {
+                            id = R.id.buttonContainer
+                            // Add value button
                             imageButton(android.R.drawable.ic_input_add) {
+                                isFocusable = false
                                 onClick {
-                                    alert {
+                                    var valueField: EditText? = null
+                                    val alertDialog = alert {
                                         customView {
                                             verticalLayout {
                                                 toolbar {
@@ -93,25 +71,36 @@ class MainActivityUi : AnkoComponent<MainActivity> {
                                                     title = "Add a value"
                                                     setTitleTextColor(ContextCompat.getColor(ctx, android.R.color.white))
                                                 }
-                                                val valueField = editText {
+                                                valueField = editText {
                                                     hint = "Value"
                                                     padding = dip(20)
-                                                    inputType = TYPE_CLASS_NUMBER + TYPE_NUMBER_FLAG_DECIMAL
+                                                    inputType = TYPE_CLASS_NUMBER or TYPE_NUMBER_FLAG_DECIMAL
+//                                                    isFocusable = true
+//                                                    isFocusableInTouchMode = true
+                                                    showKeyboardOnFocus(ctx)
+                                                    imeOptions = EditorInfo.IME_ACTION_DONE
+
                                                 }
                                                 positiveButton("Add") {
-                                                    val value = valueField.text.toString().toDoubleOrNull()
-                                                    if (value != null) {
-                                                        ui.owner.database.addRecordForTag(tag.id, value)
+                                                    val value = valueField?.text.toString().toDoubleOrNull()
+                                                    if (addValue(tag.id, value)) {
                                                         it.dismiss()
                                                     }
                                                 }
-                                                negativeButton("Cancel") {}
+                                                cancelButton { }
                                             }
                                         }
                                     }.show()
+                                    valueField?.onEditorAction { v, actionId, event ->
+                                        if (actionId == EditorInfo.IME_ACTION_DONE
+                                                && addValue(tag.id, valueField?.text.toString().toDoubleOrNull())) {
+                                            alertDialog.dismiss()
+                                        }
+                                    }
                                 }
                             }
                             imageButton(android.R.drawable.ic_delete) {
+                                isFocusable = false
                                 onClick {
                                     alert {
                                         customView {
@@ -123,7 +112,7 @@ class MainActivityUi : AnkoComponent<MainActivity> {
                                                     setTitleTextColor(ContextCompat.getColor(ctx, android.R.color.white))
                                                 }
                                                 positiveButton("Yes") {
-                                                    ui.owner.database.removeTag(tag.id)
+                                                    removeTag(tag.id)
                                                     it.dismiss()
                                                 }
                                                 negativeButton("No") {}
@@ -137,6 +126,18 @@ class MainActivityUi : AnkoComponent<MainActivity> {
                             height = wrapContent
                             alignParentRight()
                             alignParentTop()
+                        }
+                        textView {
+                            text = tag.tag
+                            textSize = 32f
+//                            background = ContextCompat.getDrawable(ctx, R.drawable.border)
+//                            onClick {
+//                                ui.owner.tagSelected(ui, tag)
+//                            }
+                        }.lparams {
+                            alignParentLeft()
+                            alignParentTop()
+                            leftOf(buttonContainer)
                         }
                     }
 
@@ -155,38 +156,12 @@ class MainActivityUi : AnkoComponent<MainActivity> {
                         if (tag != null) {
                             owner.tagSelected(ui, tag)
                         }
-//                        toast("You selected ${tag?.tag ?: "Unknown"}")
                     }
                 }.lparams {
                     margin = dip(8)
                     width = matchParent
                     height = matchParent
                 }
-
-//                imageView(android.R.drawable.ic_menu_manage).lparams {
-//                    width = matchParent
-//                    height = wrapContent
-//                    margin = dip(16)
-//                    gravity = Gravity.CENTER
-//                }
-//
-//                val name = editText {
-//                    hintResource = R.string.name
-//                    width = matchParent
-////                    height = wrapContent
-//                }
-//                val password = editText {
-//                    hintResource = R.string.password
-//                    width = matchParent
-////                    height = wrapContent
-//                    inputType = TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_PASSWORD
-//                }
-//
-//                button("Log in") {
-//                    onClick {
-//                        ui.owner.tryLogin(ui, name.text, password.text)
-//                    }
-//                }
             }.lparams {
                 width = matchParent
                 height = matchParent
@@ -195,48 +170,52 @@ class MainActivityUi : AnkoComponent<MainActivity> {
             floatingActionButton {
                 imageResource = android.R.drawable.ic_input_add
                 onClick {
-                    alert {
+                    fun addTag(tag: String?): Boolean {
+                        if (!tag.isNullOrEmpty()) {
+                            owner.database.addTag(tag!!)
+                            listAdapter?.notifyDataSetChanged()
+                            return true
+                        }
+                        return false
+                    }
+
+                    var tagField: EditText? = null
+                    val alertDialog = alert {
                         customView {
                             verticalLayout {
-                                //Dialog Title
                                 toolbar {
                                     lparams(width = matchParent, height = wrapContent)
                                     backgroundColor = ContextCompat.getColor(ctx, R.color.colorAccent)
                                     title = "Add a Tag"
                                     setTitleTextColor(ContextCompat.getColor(ctx, android.R.color.white))
                                 }
-                                val tag = editText {
+                                tagField = editText {
                                     hint = "Tag"
                                     padding = dip(20)
+                                    showKeyboardOnFocus(ctx)
+                                    inputType = TYPE_CLASS_TEXT or TYPE_TEXT_FLAG_CAP_WORDS
+                                    imeOptions = EditorInfo.IME_ACTION_DONE
                                 }
                                 positiveButton("Add") {
-                                    if (tag.text.toString().isEmpty()) {
-                                        toast("Oops!! Your task says nothing!")
-                                    } else {
-                                        // Add Tag to database and refresh list
-                                        owner.database.addTag(tag.text.toString())
-                                        listAdapter.notifyDataSetChanged()
-                                        toast("You have added ${tag.text}")
+                                    if (addTag(tagField?.text.toString())) {
                                         it.dismiss()
                                     }
                                 }
-                                negativeButton("Cancel") {
-                                    toast("Add Tag canceled.")
-                                }
+                                cancelButton { }
                             }
                         }
                     }.show()
+                    tagField?.onEditorAction { v, actionId, event ->
+                        if (actionId == EditorInfo.IME_ACTION_DONE
+                                && addTag(tagField?.text.toString())) {
+                            alertDialog.dismiss()
+                        }
+                    }
                 }
             }.lparams {
-                //setting button to bottom right of the screen
                 margin = dip(10)
-//                alignParentBottom()
-//                alignParentEnd()
-//                alignParentRight()
                 gravity = Gravity.BOTTOM or Gravity.END
             }
-
-//            myRichView()
-        }.applyRecursively(customStyle)
+        }
     }
 }

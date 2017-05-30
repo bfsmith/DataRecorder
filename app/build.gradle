@@ -8,7 +8,7 @@ android {
     compileSdkVersion 25
     buildToolsVersion '25.0.3'
     defaultConfig {
-        applicationId "bfsmith.github.com.recorder"
+        applicationId "com.github.bfsmith.recorder"
         minSdkVersion 25
         targetSdkVersion 25
         versionCode 3

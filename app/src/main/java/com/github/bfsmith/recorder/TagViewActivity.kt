@@ -42,7 +42,7 @@ class TagViewActivityUi : AnkoComponent<TagViewActivity> {
     private val dateFormat = "yyyy-MM-dd HH:mm:ss"
 
     override fun createView(ui: AnkoContext<TagViewActivity>): View = with(ui) {
-        val listAdapter = MyListAdapter<Record>(owner.records, { it.id }) {
+        val listAdapter = MyListAdapter(owner.records, { it.id }) {
             record ->
             TemplateRenderer(owner) {
                 with(it) {

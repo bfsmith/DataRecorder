@@ -26,7 +26,7 @@ class DatabaseHelper(ctx: Context) : ManagedSQLiteOpenHelper(ctx, "DataRecorderD
                 "tag" to TEXT)
         db.createTable(RecordTableName, true,
                 "id" to INTEGER + PRIMARY_KEY + AUTOINCREMENT,
-                "tagId" to TEXT,
+                "tagId" to INTEGER,
                 "date" to INTEGER,
                 "value" to REAL)
     }
